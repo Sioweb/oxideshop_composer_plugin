@@ -11,8 +11,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Changed
 - Exclude non-essential files from dist package [PR-12](https://github.com/OXID-eSales/oxideshop_composer_plugin/pull/12)
+- ModulePackageInstaller uses services from OXID eShop in order to install modules
 
 ### Deprecated
+- ModulePackageInstaller::isInstalled()
 
 ### Removed
 

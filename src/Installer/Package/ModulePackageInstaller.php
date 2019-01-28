@@ -6,18 +6,50 @@
 
 namespace OxidEsales\ComposerPlugin\Installer\Package;
 
-use OxidEsales\ComposerPlugin\Utilities\CopyFileManager\CopyGlobFilteredFileManager;
-use Webmozart\PathUtil\Path;
+use Composer\IO\IOInterface;
+use OxidEsales\EshopCommunity\Internal\Application\ContainerFactory;
+use Composer\Package\PackageInterface;
+use OxidEsales\EshopCommunity\Internal\Common\Exception\DirectoryExistentException;
+use OxidEsales\EshopCommunity\Internal\Module\Install\ModuleFilesInstallerInterface;
+use OxidEsales\EshopCommunity\Internal\Module\Install\ModuleFilesInstaller;
 
 /**
  * @inheritdoc
  */
-class ModulePackageInstaller extends AbstractPackageInstaller
+class ModulePackageInstaller
 {
-    const MODULES_DIRECTORY = 'modules';
+    /** @var IOInterface $io */
+    private $io;
+
+    /** @var ModuleFilesInstaller $modulyCopyService */
+    private $moduleCopyService;
+
+    /** @var PackageInterface */
+    private $package;
+
+    /** @var string */
+    private $rootDirectory;
+
+    /**
+     * AbstractInstaller constructor.
+     *
+     * @param IOInterface      $io
+     * @param string           $rootDirectory
+     * @param PackageInterface $package
+     */
+    public function __construct(IOInterface $io, $rootDirectory, PackageInterface $package)
+    {
+        $this->io = $io;
+        $container = ContainerFactory::getInstance()->getContainer();
+        $this->moduleCopyService = $container->get(ModuleFilesInstallerInterface::class);
+        $this->package = $package;
+        $this->rootDirectory = $rootDirectory;
+    }
 
     /**
      * @return bool
+     *
+     * @deprecated since v.3.0.0 (2019-01-31); install() and update() can handle the isInstalle case with an exception.
      */
     public function isInstalled()
     {
@@ -31,8 +63,13 @@ class ModulePackageInstaller extends AbstractPackageInstaller
      */
     public function install($packagePath)
     {
-        $this->getIO()->write("Installing module {$this->getPackageName()} package.");
-        $this->copyPackage($packagePath);
+        $this->io->write("Installing module {$packagePath} package.");
+        try {
+            $this->moduleCopyService->copy($packagePath);
+        } catch (DirectoryExistentException $exception) {
+            $directoryAlreadyExistent = $exception->getDirectoryAlreadyExistent();
+            $this->io->write("The directory $directoryAlreadyExistent already exists. Aborting.");
+        }
     }
 
     /**
@@ -42,59 +79,63 @@ class ModulePackageInstaller extends AbstractPackageInstaller
      */
     public function update($packagePath)
     {
-        if ($this->askQuestionIfNotInstalled("Update operation will overwrite {$this->getPackageName()} files."
-            ." Do you want to continue? (y/N) ")) {
-            $this->getIO()->write("Copying module {$this->getPackageName()} files...");
-            $this->copyPackage($packagePath);
+        $this->io->write("Installing module {$packagePath} package.");
+        try {
+            $this->moduleCopyService->copy($packagePath);
+        } catch (DirectoryExistentException $exception) {
+            $directoryAlreadyExistent = $exception->getDirectoryAlreadyExistent();
+            $question = 'All files in the following directories will be overwritten:' . PHP_EOL .
+                        '- ' . $directoryAlreadyExistent . PHP_EOL .
+                        'Do you want to overwrite them? (y/N) ';
+            if ($this->askQuestion($question)) {
+                $this->moduleCopyService->forceCopy($packagePath);
+            }
         }
     }
 
     /**
-     * Copy files from package source to defined target path.
+     * Returns true if the human answer to the given question was answered with a positive value (Yes/yes/Y/y).
      *
-     * @param string $packagePath Absolute path to the package.
+     * @param string $messageToAsk
+     * @return bool
      */
-    protected function copyPackage($packagePath)
+    protected function askQuestion(string $messageToAsk) : bool
     {
-        $filtersToApply = [
-            $this->getBlacklistFilterValue(),
-            $this->getVCSFilter(),
-        ];
+        $userInput = $this->io->ask($messageToAsk, 'N');
 
-        CopyGlobFilteredFileManager::copy(
-            $this->formSourcePath($packagePath),
-            $this->formTargetPath(),
-            $this->getCombinedFilters($filtersToApply)
-        );
+        return $this->isPositiveUserInput($userInput);
     }
 
     /**
-     * If module source directory option provided add it's relative path.
-     * Otherwise return plain package path.
+     * Return true if the input from user is a positive answer (Yes/yes/Y/y)
      *
-     * @param string $packagePath
+     * @param string $userInput Raw user input
      *
-     * @return string
+     * @return bool
      */
-    protected function formSourcePath($packagePath)
+    private function isPositiveUserInput(string $userInput) :bool
     {
-        $sourceDirectory = $this->getExtraParameterValueByKey(static::EXTRA_PARAMETER_KEY_SOURCE);
+        $positiveAnswers = ['yes', 'y'];
 
-        return !empty($sourceDirectory)?
-            Path::join($packagePath, $sourceDirectory):
-            $packagePath;
+        return in_array(strtolower(trim($userInput)), $positiveAnswers, true);
     }
 
     /**
+     * @deprecated since v.3.0.0 (2019-01-31); isInstalled() method will be removed in futuru
+     *
      * @return string
      */
     protected function formTargetPath()
     {
-        $targetDirectory = $this->getExtraParameterValueByKey(
-            static::EXTRA_PARAMETER_KEY_TARGET,
-            $this->getPackage()->getName()
-        );
+        $extraParameters = $this->package->getExtra();
 
-        return Path::join($this->getRootDirectory(), static::MODULES_DIRECTORY, $targetDirectory);
+        if ((isset($extraParameters['oxideshop']['target-directory'])) &&
+            (!empty($extraParameters['oxideshop']['target-directory']))) {
+            $targetDirectory = $extraParameters['oxideshop']['target-directory'];
+        } else {
+            $targetDirectory = $this->package->getName();
+        };
+
+        return Path::join($this->rootDirectory, 'modules', $targetDirectory);
     }
 }
