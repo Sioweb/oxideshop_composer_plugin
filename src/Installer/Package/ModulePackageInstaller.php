@@ -47,7 +47,7 @@ class ModulePackageInstaller extends AbstractPackageInstaller
         $moduleInstaller = $this->getModuleInstaller();
 
         if ($moduleInstaller->isInstalled($packagePath)) {
-            if ($this->askQuestion("Update operation will overwrite {$this->getPackageName()} files.")) {
+            if ($this->askQuestion("Update operation will overwrite {$this->getPackageName()} files. Do you want to continue? (y/N) ")) {
                 $this->getIO()->write("Updating module {$this->getPackageName()} files...");
                 $moduleInstaller->install($packagePath);
             }
