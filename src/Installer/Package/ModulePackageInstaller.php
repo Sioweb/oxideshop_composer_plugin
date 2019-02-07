@@ -37,7 +37,7 @@ class ModulePackageInstaller extends AbstractPackageInstaller
         $this->getIO()->write("Installing module {$this->getPackageName()} package.");
 
         $moduleInstaller = $this->getModuleInstaller();
-        $moduleInstaller->install($packagePath, $this->getOxidShopPackage());
+        $moduleInstaller->install($this->getOxidShopPackage($packagePath));
     }
 
     /**
@@ -49,10 +49,10 @@ class ModulePackageInstaller extends AbstractPackageInstaller
     {
         $moduleInstaller = $this->getModuleInstaller();
 
-        if ($moduleInstaller->isInstalled($packagePath, $this->getOxidShopPackage())) {
+        if ($moduleInstaller->isInstalled($this->getOxidShopPackage($packagePath))) {
             if ($this->askQuestion("Update operation will overwrite {$this->getPackageName()} files. Do you want to continue? (y/N) ")) {
                 $this->getIO()->write("Updating module {$this->getPackageName()} files...");
-                $moduleInstaller->install($packagePath, $this->getOxidShopPackage());
+                $moduleInstaller->install($this->getOxidShopPackage($packagePath));
             }
         } else {
             $this->install($packagePath);
@@ -69,11 +69,13 @@ class ModulePackageInstaller extends AbstractPackageInstaller
     }
 
     /**
+     * @param string $packagePath
+     *
      * @return OxidEshopPackage
      */
-    private function getOxidShopPackage(): OxidEshopPackage
+    private function getOxidShopPackage(string $packagePath): OxidEshopPackage
     {
-        return new OxidEshopPackage($this->getPackage()->getName(), $this->getPackage()->getExtra());
+        return new OxidEshopPackage($this->getPackage()->getName(), $packagePath, $this->getPackage()->getExtra());
     }
 
     /**
