@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - Exclude non-essential files from dist package [PR-12](https://github.com/OXID-eSales/oxideshop_composer_plugin/pull/12)
 
 ### Deprecated
+- Class OxidEsales\ComposerPlugin\Installer\Package\ModulePackageInstaller
 
 ### Removed
 
